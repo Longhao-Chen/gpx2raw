@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .core import find_match, load_gpx_points
-from .exiftool_io import ExifToolError, ensure_exiftool_installed, read_photo_timestamp, write_gps_metadata
+from .exiftool_io import ExifToolError, ensure_exiftool_installed, read_photo_metadata, write_gps_metadata
 
 
 PHOTO_EXTENSIONS = {".nef", ".jpg", ".jpeg"}
@@ -37,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timezone", help="当照片缺少 OffsetTimeOriginal 时使用的时区，如 Asia/Shanghai。")
     parser.add_argument("-w", "--write", action="store_true", help="执行写入。未指定时仅 dry-run 预览。")
     parser.add_argument("-N", "--no-backup", action="store_true", help="写入时不保留 exiftool 备份文件。")
+    parser.add_argument("--skip-existing-gps", action="store_true", help="如果照片已包含 GPS 信息则跳过。")
     return parser
 
 
@@ -83,8 +84,19 @@ def _run(args: argparse.Namespace) -> int:
 
     for photo in photos:
         try:
-            photo_timestamp = read_photo_timestamp(photo, args.timezone)
-            photo_time = photo_timestamp.original_utc + offset
+            photo_metadata = read_photo_metadata(photo, args.timezone)
+            photo_time = photo_metadata.original_utc + offset
+
+            if args.skip_existing_gps and photo_metadata.has_existing_gps:
+                stats = RunStats(
+                    total=stats.total,
+                    written=stats.written,
+                    skipped=stats.skipped + 1,
+                    failed=stats.failed,
+                )
+                _print_row([photo.name, photo_time.isoformat(), "-", "existing-gps", "-", "-", "SKIP"])
+                continue
+
             matched = find_match(photo_time, track_points, args.max_delta_sec)
             if matched is None:
                 stats = RunStats(

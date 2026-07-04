@@ -19,6 +19,12 @@ class PhotoTimestamp:
     original_utc: datetime
 
 
+@dataclass(frozen=True)
+class PhotoMetadata:
+    original_utc: datetime
+    has_existing_gps: bool
+
+
 def ensure_exiftool_installed() -> None:
     if shutil.which("exiftool"):
         return
@@ -62,6 +68,22 @@ def _subsec_to_microsecond(value: Any) -> int | None:
     return int(digits[:6].ljust(6, "0"))
 
 
+def _has_existing_gps(record: dict[str, Any]) -> bool:
+    gps_keys = (
+        "GPSLatitude",
+        "GPSLongitude",
+        "GPSAltitude",
+        "GPSPosition",
+        "GPSLatitudeRef",
+        "GPSLongitudeRef",
+    )
+    for key in gps_keys:
+        value = record.get(key)
+        if value not in (None, "", [], {}):
+            return True
+    return False
+
+
 def parse_photo_timestamp(record: dict[str, Any], fallback_timezone: str | None) -> PhotoTimestamp:
     date_str = record.get("DateTimeOriginal")
     if not date_str:
@@ -83,13 +105,17 @@ def parse_photo_timestamp(record: dict[str, Any], fallback_timezone: str | None)
     return PhotoTimestamp(original_utc=aware.astimezone(timezone.utc))
 
 
-def read_photo_timestamp(photo_path: Path, fallback_timezone: str | None) -> PhotoTimestamp:
+def read_photo_metadata(photo_path: Path, fallback_timezone: str | None) -> PhotoMetadata:
     stdout = _run_exiftool(
         [
             "-j",
             "-DateTimeOriginal",
             "-SubSecTimeOriginal",
             "-OffsetTimeOriginal",
+            "-GPSLatitude",
+            "-GPSLongitude",
+            "-GPSAltitude",
+            "-GPSPosition",
             str(photo_path),
         ]
     )
@@ -97,7 +123,13 @@ def read_photo_timestamp(photo_path: Path, fallback_timezone: str | None) -> Pho
     if not payload:
         raise ExifToolError(f"未读取到 EXIF 数据: {photo_path}")
     record = payload[0]
-    return parse_photo_timestamp(record, fallback_timezone)
+    timestamp = parse_photo_timestamp(record, fallback_timezone)
+    return PhotoMetadata(original_utc=timestamp.original_utc, has_existing_gps=_has_existing_gps(record))
+
+
+def read_photo_timestamp(photo_path: Path, fallback_timezone: str | None) -> PhotoTimestamp:
+    metadata = read_photo_metadata(photo_path, fallback_timezone)
+    return PhotoTimestamp(original_utc=metadata.original_utc)
 
 
 def write_gps_metadata(

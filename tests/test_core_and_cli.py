@@ -7,7 +7,8 @@ import pytest
 
 from gpx2raw.cli import _collect_photos
 from gpx2raw.core import TrackPoint, find_match
-from gpx2raw.exiftool_io import ExifToolError, parse_photo_timestamp
+from gpx2raw.exiftool_io import ExifToolError, parse_photo_timestamp, read_photo_metadata
+from gpx2raw.cli import build_parser
 
 
 def test_collect_photos_supports_single_jpg(tmp_path: Path) -> None:
@@ -83,3 +84,9 @@ def test_parse_photo_timestamp_requires_tz_when_missing_offset() -> None:
 
     with pytest.raises(ExifToolError):
         parse_photo_timestamp(record, fallback_timezone=None)
+
+
+def test_build_parser_supports_skip_existing_gps_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--photos", "a.NEF", "--gpx", "b.gpx", "--skip-existing-gps"])
+    assert args.skip_existing_gps is True

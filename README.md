@@ -12,6 +12,7 @@
 - `--gpx` 必填，通过 GPX 时间点匹配照片时间。
 - 默认 `dry-run`，只有加 `--write` 才会写入。
 - 匹配策略为线性插值，超出最大时间差窗口会跳过。
+- 可选跳过已存在 GPS 信息的照片。
 
 ## 依赖
 
@@ -57,6 +58,12 @@ uv run gpx2raw --photos ./testdata/_DSC1657.NEF --gpx ./track.gpx --write
 uv run gpx2raw --photos ./testdata --gpx ./track.gpx -w -N
 ```
 
+跳过已经写有 GPS 的照片:
+
+```bash
+uv run gpx2raw --photos ./photos --gpx ./track.gpx --skip-existing-gps
+```
+
 指定时间偏移与匹配窗口:
 
 ```bash
@@ -77,3 +84,4 @@ uv run gpx2raw \
 - `--timezone` 可选。照片缺失 `OffsetTimeOriginal` 时使用。
 - `-w, --write` 可选。实际写入；未指定时仅预览。
 - `-N, --no-backup` 可选。写入时不保留 exiftool 备份。
+- `--skip-existing-gps` 可选。照片已有 GPS 信息时直接跳过。

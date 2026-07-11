@@ -4,7 +4,7 @@ import json
 import shutil
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -47,8 +47,6 @@ def _offset_to_tz(offset_text: str) -> timezone:
     hours = int(offset_text[1:3])
     minutes = int(offset_text[4:6])
     seconds = sign * (hours * 3600 + minutes * 60)
-    from datetime import timedelta
-
     return timezone(timedelta(seconds=seconds))
 
 
@@ -84,23 +82,55 @@ def _has_existing_gps(record: dict[str, Any]) -> bool:
     return False
 
 
-def parse_photo_timestamp(record: dict[str, Any], fallback_timezone: str | None) -> PhotoTimestamp:
-    date_str = record.get("DateTimeOriginal")
+def parse_photo_timestamp(record: dict[str, Any], fallback_timezone: str | None, photo_path: Path | None = None) -> PhotoTimestamp:
+    date_str = record.get("DateTimeOriginal") or record.get("CreateDate") or record.get("MediaCreateDate")
     if not date_str:
-        raise ExifToolError("缺少 DateTimeOriginal，无法匹配轨迹。")
+        raise ExifToolError("缺少 DateTimeOriginal / CreateDate，无法匹配轨迹。")
 
-    base = datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+    date_str = str(date_str)
+
+    # QuickTime CreateDate may look like "2026:07:05 08:00:00+08:00"
+    # Extract base datetime and optional embedded timezone offset
+    tz_info: timezone | None = None
+    clean = date_str.strip()
+
+    # Try to extract embedded timezone (+HH:MM or -HH:MM) at the end
+    if len(clean) > 19 and clean[19] in "+-":
+        base_str = clean[:19]
+        tz_part = clean[19:].replace(":", "")  # +08:00 → +0800
+        # Handle sign
+        sign = 1 if tz_part[0] == "+" else -1
+        try:
+            hours = int(tz_part[1:3])
+            minutes = int(tz_part[3:5]) if len(tz_part) >= 5 else 0
+            seconds = sign * (hours * 3600 + minutes * 60)
+            tz_info = timezone(timedelta(seconds=seconds))
+        except (ValueError, IndexError):
+            pass
+    else:
+        base_str = clean[:19]
+
+    base = datetime.strptime(base_str, "%Y:%m:%d %H:%M:%S")
+    if tz_info is not None:
+        base = base.replace(tzinfo=tz_info)
+
     microsecond = _subsec_to_microsecond(record.get("SubSecTimeOriginal"))
     if microsecond is not None:
         base = base.replace(microsecond=microsecond)
 
+    # Determine timezone: embedded in date > OffsetTimeOriginal > fallback_timezone > UTC (with warning)
     offset_str = record.get("OffsetTimeOriginal")
-    if offset_str and len(offset_str) == 6 and offset_str[0] in "+-" and offset_str[3] == ":":
-        aware = base.replace(tzinfo=_offset_to_tz(offset_str))
+    if base.tzinfo is not None:
+        # Already had timezone from CreateDate
+        aware = base
+    elif offset_str and len(str(offset_str)) == 6 and str(offset_str)[0] in "+-" and str(offset_str)[3] == ":":
+        aware = base.replace(tzinfo=_offset_to_tz(str(offset_str)))
     elif fallback_timezone:
         aware = base.replace(tzinfo=ZoneInfo(fallback_timezone))
     else:
-        raise ExifToolError("缺少 OffsetTimeOriginal。请通过 --timezone 指定照片时区。")
+        name = photo_path.name if photo_path else "未知文件"
+        print(f"[WARN] {name}: 缺少 OffsetTimeOriginal，默认按 Asia/Shanghai (UTC+8) 处理。可通过 --timezone 指定时区。")
+        aware = base.replace(tzinfo=ZoneInfo("Asia/Shanghai"))
 
     return PhotoTimestamp(original_utc=aware.astimezone(timezone.utc))
 
@@ -112,6 +142,8 @@ def read_photo_metadata(photo_path: Path, fallback_timezone: str | None) -> Phot
             "-DateTimeOriginal",
             "-SubSecTimeOriginal",
             "-OffsetTimeOriginal",
+            "-CreateDate",
+            "-MediaCreateDate",
             "-GPSLatitude",
             "-GPSLongitude",
             "-GPSAltitude",
@@ -123,7 +155,7 @@ def read_photo_metadata(photo_path: Path, fallback_timezone: str | None) -> Phot
     if not payload:
         raise ExifToolError(f"未读取到 EXIF 数据: {photo_path}")
     record = payload[0]
-    timestamp = parse_photo_timestamp(record, fallback_timezone)
+    timestamp = parse_photo_timestamp(record, fallback_timezone, photo_path=photo_path)
     return PhotoMetadata(original_utc=timestamp.original_utc, has_existing_gps=_has_existing_gps(record))
 
 

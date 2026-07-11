@@ -6,11 +6,31 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Iterable
 
-from .core import find_match, load_gpx_points
+from .core import TrackPoint, find_match, load_gpx_points
 from .exiftool_io import ExifToolError, ensure_exiftool_installed, read_photo_metadata, write_gps_metadata
 
 
 PHOTO_EXTENSIONS = {".nef", ".jpg", ".jpeg", ".mov"}
+GPX_EXTENSIONS = {".gpx"}
+
+
+def _collect_gpx(gpx_args: list[str]) -> list[Path]:
+    paths: list[Path] = []
+    for raw in gpx_args:
+        p = Path(raw).expanduser().resolve()
+        if p.is_file():
+            if p.suffix.lower() in GPX_EXTENSIONS:
+                paths.append(p)
+        elif p.is_dir():
+            for item in sorted(p.rglob("*")):
+                if item.is_file() and item.suffix.lower() in GPX_EXTENSIONS:
+                    paths.append(item)
+        else:
+            raise ValueError(f"--gpx 路径不存在: {raw}")
+
+    if not paths:
+        raise ValueError("未发现 .gpx 文件。")
+    return paths
 
 
 @dataclass(frozen=True)
@@ -31,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="照片输入路径，支持目录或单个 .NEF/.JPG/.JPEG/.MOV 文件。",
     )
-    parser.add_argument("--gpx", required=True, help="GPX 轨迹文件路径。")
+    parser.add_argument("--gpx", required=True, nargs="+", help="GPX 轨迹文件或目录，可传入多个。")
     parser.add_argument("--max-delta-sec", type=float, default=300.0, help="最大允许匹配时间差（秒），默认 300。")
     parser.add_argument("--clock-offset-sec", type=float, default=0.0, help="对照片时间应用的全局偏移（秒）。")
     parser.add_argument("--timezone", help="当照片缺少 OffsetTimeOriginal 时使用的时区，如 Asia/Shanghai。")
@@ -64,17 +84,20 @@ def _print_row(columns: Iterable[str]) -> None:
 
 def _run(args: argparse.Namespace) -> int:
     photos_path = Path(args.photos).expanduser().resolve()
-    gpx_path = Path(args.gpx).expanduser().resolve()
-    if not gpx_path.is_file():
-        raise ValueError("--gpx 路径不存在或不是文件。")
+
+    gpx_files = _collect_gpx(args.gpx)
 
     photos = _collect_photos(photos_path)
     if not photos:
         raise ValueError("未发现 .NEF/.JPG/.JPEG/.MOV 文件。")
 
     ensure_exiftool_installed()
-    track_points = load_gpx_points(gpx_path)
-    if not track_points:
+
+    all_track_points: list[TrackPoint] = []
+    for gpx_path in gpx_files:
+        all_track_points.extend(load_gpx_points(gpx_path))
+    all_track_points.sort(key=lambda item: item.time_utc)
+    if not all_track_points:
         raise ValueError("GPX 中没有可用的带时间轨迹点。")
 
     offset = timedelta(seconds=args.clock_offset_sec)
@@ -97,7 +120,7 @@ def _run(args: argparse.Namespace) -> int:
                 _print_row([photo.name, photo_time.isoformat(), "-", "existing-gps", "-", "-", "SKIP"])
                 continue
 
-            matched = find_match(photo_time, track_points, args.max_delta_sec)
+            matched = find_match(photo_time, all_track_points, args.max_delta_sec)
             if matched is None:
                 stats = RunStats(
                     total=stats.total,

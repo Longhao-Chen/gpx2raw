@@ -5,10 +5,43 @@ from pathlib import Path
 
 import pytest
 
-from gpx2raw.cli import _collect_photos
+from gpx2raw.cli import _collect_gpx, _collect_photos, build_parser
 from gpx2raw.core import TrackPoint, find_match
-from gpx2raw.exiftool_io import ExifToolError, parse_photo_timestamp, read_photo_metadata
-from gpx2raw.cli import build_parser
+from gpx2raw.exiftool_io import parse_photo_timestamp
+
+
+def test_collect_gpx_single_file(tmp_path: Path) -> None:
+    gpx = tmp_path / "a.gpx"
+    gpx.write_bytes(b"x")
+    found = _collect_gpx([str(gpx)])
+    assert found == [gpx]
+
+
+def test_collect_gpx_directory(tmp_path: Path) -> None:
+    a = tmp_path / "a.gpx"
+    b = tmp_path / "b.gpx"
+    ignored = tmp_path / "c.txt"
+    a.write_bytes(b"x")
+    b.write_bytes(b"x")
+    ignored.write_bytes(b"x")
+    found = _collect_gpx([str(tmp_path)])
+    assert found == [a, b]
+
+
+def test_collect_gpx_mixed_args(tmp_path: Path) -> None:
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    a = tmp_path / "a.gpx"
+    b = sub / "b.gpx"
+    a.write_bytes(b"x")
+    b.write_bytes(b"x")
+    found = _collect_gpx([str(a), str(sub)])
+    assert found == [a, b]
+
+
+def test_collect_gpx_rejects_missing_path() -> None:
+    with pytest.raises(ValueError):
+        _collect_gpx(["/nonexistent/path.gpx"])
 
 
 def test_collect_photos_supports_single_jpg(tmp_path: Path) -> None:
@@ -79,13 +112,38 @@ def test_parse_photo_timestamp_with_int_subsec() -> None:
     assert parsed.original_utc == datetime(2026, 7, 5, 0, 0, 0, 200000, tzinfo=timezone.utc)
 
 
-def test_parse_photo_timestamp_requires_tz_when_missing_offset() -> None:
+def test_parse_photo_timestamp_defaults_to_utc8_when_missing_offset() -> None:
     record = {
         "DateTimeOriginal": "2026:07:05 08:00:00",
     }
 
-    with pytest.raises(ExifToolError):
-        parse_photo_timestamp(record, fallback_timezone=None)
+    parsed = parse_photo_timestamp(record, fallback_timezone=None)
+    # 无 OffsetTimeOriginal 且无 --timezone 时默认按 Asia/Shanghai (UTC+8) 处理
+    assert parsed.original_utc == datetime(2026, 7, 5, 0, 0, 0, tzinfo=timezone.utc)
+
+
+def test_parse_photo_timestamp_falls_back_to_create_date() -> None:
+    record = {
+        "CreateDate": "2026:07:05 08:00:00",
+    }
+
+    parsed = parse_photo_timestamp(record, fallback_timezone=None)
+    assert parsed.original_utc == datetime(2026, 7, 5, 0, 0, 0, tzinfo=timezone.utc)
+
+
+def test_parse_photo_timestamp_create_date_with_offset() -> None:
+    record = {
+        "CreateDate": "2026:07:05 08:00:00+08:00",
+    }
+
+    parsed = parse_photo_timestamp(record, fallback_timezone=None)
+    assert parsed.original_utc == datetime(2026, 7, 5, 0, 0, 0, tzinfo=timezone.utc)
+
+
+def test_build_parser_supports_multiple_gpx_args() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--photos", "a.NEF", "--gpx", "b.gpx", "c.gpx"])
+    assert args.gpx == ["b.gpx", "c.gpx"]
 
 
 def test_build_parser_supports_skip_existing_gps_flag() -> None:

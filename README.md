@@ -10,7 +10,7 @@
 ## 特性
 
 - `--photos` 同时支持目录和单文件。
-- `--gpx` 必填，通过 GPX 时间点匹配照片时间。
+- `--gpx` 必填，通过 GPX 时间点匹配照片时间。支持传入多个文件或目录。
 - 默认 `dry-run`，只有加 `--write` 才会写入。
 - 匹配策略为线性插值，超出最大时间差窗口会跳过。
 - 可选跳过已存在 GPS 信息的照片。
@@ -47,6 +47,13 @@ uv sync --dev
 uv run gpx2raw --photos ./testdata --gpx ./track.gpx
 ```
 
+多 GPX 文件或目录:
+
+```bash
+uv run gpx2raw --photos ./photos --gpx ./track1.gpx ./track2.gpx
+uv run gpx2raw --photos ./photos --gpx ./gpx_folder/
+```
+
 单文件输入并实际写入:
 
 ```bash
@@ -79,7 +86,7 @@ uv run gpx2raw \
 ## 参数
 
 - `--photos` 必填。目录或单个媒体文件（.NEF/.JPG/.JPEG/.MOV）。
-- `--gpx` 必填。GPX 文件路径。
+- `--gpx` 必填。GPX 文件或目录，可传入多个。
 - `--max-delta-sec` 可选。最大允许时间差，默认 300。
 - `--clock-offset-sec` 可选。对照片时间加减秒数，默认 0。
 - `--timezone` 可选。照片缺失 `OffsetTimeOriginal` 时使用。

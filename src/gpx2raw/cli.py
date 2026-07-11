@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
+from zoneinfo import ZoneInfo
 
 from .core import TrackPoint, find_match, load_gpx_points
 from .exiftool_io import ExifToolError, ensure_exiftool_installed, read_photo_metadata, write_gps_metadata
@@ -31,6 +32,13 @@ def _collect_gpx(gpx_args: list[str]) -> list[Path]:
     if not paths:
         raise ValueError("未发现 .gpx 文件。")
     return paths
+
+
+DISPLAY_TZ = ZoneInfo("Asia/Shanghai")
+
+
+def _fmt_time(utc_dt: datetime) -> str:
+    return utc_dt.astimezone(DISPLAY_TZ).isoformat()
 
 
 @dataclass(frozen=True)
@@ -103,7 +111,7 @@ def _run(args: argparse.Namespace) -> int:
     offset = timedelta(seconds=args.clock_offset_sec)
     stats = RunStats(total=len(photos))
     action = "WRITE" if args.write else "DRYRUN"
-    _print_row(["file", "photo_utc", "delta_sec", "source", "lat", "lon", "action"])
+    _print_row(["file", "photo_time", "delta_sec", "source", "lat", "lon", "action"])
 
     for photo in photos:
         try:
@@ -117,7 +125,7 @@ def _run(args: argparse.Namespace) -> int:
                     skipped=stats.skipped + 1,
                     failed=stats.failed,
                 )
-                _print_row([photo.name, photo_time.isoformat(), "-", "existing-gps", "-", "-", "SKIP"])
+                _print_row([photo.name, _fmt_time(photo_time), "-", "existing-gps", "-", "-", "SKIP"])
                 continue
 
             matched = find_match(photo_time, all_track_points, args.max_delta_sec)
@@ -128,7 +136,7 @@ def _run(args: argparse.Namespace) -> int:
                     skipped=stats.skipped + 1,
                     failed=stats.failed,
                 )
-                _print_row([photo.name, photo_time.isoformat(), "-", "skip", "-", "-", "SKIP"])
+                _print_row([photo.name, _fmt_time(photo_time), "-", "skip", "-", "-", "SKIP"])
                 continue
 
             if args.write:
@@ -157,7 +165,7 @@ def _run(args: argparse.Namespace) -> int:
             _print_row(
                 [
                     photo.name,
-                    photo_time.isoformat(),
+                    _fmt_time(photo_time),
                     f"{matched.nearest_delta_seconds:.3f}",
                     matched.source,
                     f"{matched.latitude:.7f}",

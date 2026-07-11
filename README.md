@@ -2,9 +2,10 @@
 
 将照片拍摄时间与 GPX 轨迹时间对齐，匹配坐标并写入照片 GPS 元数据。
 
-当前支持照片格式：
+当前支持媒体格式：
 - NEF
 - JPG/JPEG
+- MOV
 
 ## 特性
 
@@ -77,7 +78,7 @@ uv run gpx2raw \
 
 ## 参数
 
-- `--photos` 必填。目录或单个照片文件（.NEF/.JPG/.JPEG）。
+- `--photos` 必填。目录或单个媒体文件（.NEF/.JPG/.JPEG/.MOV）。
 - `--gpx` 必填。GPX 文件路径。
 - `--max-delta-sec` 可选。最大允许时间差，默认 300。
 - `--clock-offset-sec` 可选。对照片时间加减秒数，默认 0。

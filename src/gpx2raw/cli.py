@@ -10,7 +10,7 @@ from .core import find_match, load_gpx_points
 from .exiftool_io import ExifToolError, ensure_exiftool_installed, read_photo_metadata, write_gps_metadata
 
 
-PHOTO_EXTENSIONS = {".nef", ".jpg", ".jpeg"}
+PHOTO_EXTENSIONS = {".nef", ".jpg", ".jpeg", ".mov"}
 
 
 @dataclass(frozen=True)
@@ -24,12 +24,12 @@ class RunStats:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gpx2raw",
-        description="按拍摄时间将 GPX 坐标匹配并写入 NEF/JPG GPS 元数据。",
+        description="按拍摄时间将 GPX 坐标匹配并写入 NEF/JPG/MOV GPS 元数据。",
     )
     parser.add_argument(
         "--photos",
         required=True,
-        help="照片输入路径，支持目录或单个 .NEF/.JPG/.JPEG 文件。",
+        help="照片输入路径，支持目录或单个 .NEF/.JPG/.JPEG/.MOV 文件。",
     )
     parser.add_argument("--gpx", required=True, help="GPX 轨迹文件路径。")
     parser.add_argument("--max-delta-sec", type=float, default=300.0, help="最大允许匹配时间差（秒），默认 300。")
@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _collect_photos(photos_path: Path) -> list[Path]:
     if photos_path.is_file():
         if photos_path.suffix.lower() not in PHOTO_EXTENSIONS:
-            raise ValueError("--photos 为单文件时必须是 .NEF/.JPG/.JPEG 文件。")
+            raise ValueError("--photos 为单文件时必须是 .NEF/.JPG/.JPEG/.MOV 文件。")
         return [photos_path]
 
     if photos_path.is_dir():
@@ -70,7 +70,7 @@ def _run(args: argparse.Namespace) -> int:
 
     photos = _collect_photos(photos_path)
     if not photos:
-        raise ValueError("未发现 .NEF/.JPG/.JPEG 文件。")
+        raise ValueError("未发现 .NEF/.JPG/.JPEG/.MOV 文件。")
 
     ensure_exiftool_installed()
     track_points = load_gpx_points(gpx_path)

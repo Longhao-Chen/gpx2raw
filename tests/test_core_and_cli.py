@@ -22,13 +22,15 @@ def test_collect_photos_supports_single_jpg(tmp_path: Path) -> None:
 def test_collect_photos_supports_directory_mixed_ext(tmp_path: Path) -> None:
     photo_nef = tmp_path / "a.NEF"
     photo_jpeg = tmp_path / "b.jpeg"
-    ignored = tmp_path / "c.png"
+    video_mov = tmp_path / "c.MOV"
+    ignored = tmp_path / "d.png"
     photo_nef.write_bytes(b"x")
     photo_jpeg.write_bytes(b"x")
+    video_mov.write_bytes(b"x")
     ignored.write_bytes(b"x")
 
     found = _collect_photos(tmp_path)
-    assert found == [photo_nef, photo_jpeg]
+    assert found == [photo_nef, photo_jpeg, video_mov]
 
 
 def test_collect_photos_rejects_invalid_single_file(tmp_path: Path) -> None:

@@ -36,6 +36,53 @@ def test_collect_gpx_mixed_args(tmp_path: Path) -> None:
     a.write_bytes(b"x")
     b.write_bytes(b"x")
     found = _collect_gpx([str(a), str(sub)])
+    # b.gpx is at top level of sub/, found by glob
+    assert found == [a, b]
+
+
+def test_collect_gpx_directory_non_recursive(tmp_path: Path) -> None:
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    a = tmp_path / "a.gpx"
+    b = sub / "b.gpx"
+    a.write_bytes(b"x")
+    b.write_bytes(b"x")
+    found = _collect_gpx([str(tmp_path)])
+    # non-recursive: only top-level a.gpx
+    assert found == [a]
+
+
+def test_collect_gpx_directory_recursive(tmp_path: Path) -> None:
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    a = tmp_path / "a.gpx"
+    b = sub / "b.gpx"
+    a.write_bytes(b"x")
+    b.write_bytes(b"x")
+    found = _collect_gpx([str(tmp_path)], recursive=True)
+    assert found == [a, b]
+
+
+def test_collect_photos_directory_non_recursive(tmp_path: Path) -> None:
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    a = tmp_path / "a.jpg"
+    b = sub / "b.jpg"
+    a.write_bytes(b"x")
+    b.write_bytes(b"x")
+    found = _collect_photos(tmp_path)
+    # non-recursive: only top-level
+    assert found == [a]
+
+
+def test_collect_photos_directory_recursive(tmp_path: Path) -> None:
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    a = tmp_path / "a.jpg"
+    b = sub / "b.jpg"
+    a.write_bytes(b"x")
+    b.write_bytes(b"x")
+    found = _collect_photos(tmp_path, recursive=True)
     assert found == [a, b]
 
 
@@ -144,6 +191,13 @@ def test_build_parser_supports_multiple_gpx_args() -> None:
     parser = build_parser()
     args = parser.parse_args(["--photos", "a.NEF", "--gpx", "b.gpx", "c.gpx"])
     assert args.gpx == ["b.gpx", "c.gpx"]
+
+
+def test_build_parser_supports_recursive_flags() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--photos", "a.NEF", "--gpx", "b.gpx", "-rp", "-rg"])
+    assert args.recursive_photos is True
+    assert args.recursive_gpx is True
 
 
 def test_build_parser_supports_skip_existing_gps_flag() -> None:

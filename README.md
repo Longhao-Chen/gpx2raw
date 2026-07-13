@@ -72,6 +72,12 @@ uv run gpx2raw --photos ./testdata --gpx ./track.gpx -w -N
 uv run gpx2raw --photos ./photos --gpx ./track.gpx --skip-existing-gps
 ```
 
+递归搜索子目录:
+
+```bash
+uv run gpx2raw --photos ./photos -rp --gpx ./gpx_folder -rg
+```
+
 指定时间偏移与匹配窗口:
 
 ```bash
@@ -93,3 +99,5 @@ uv run gpx2raw \
 - `-w, --write` 可选。实际写入；未指定时仅预览。
 - `-N, --no-backup` 可选。写入时不保留 exiftool 备份。
 - `--skip-existing-gps` 可选。照片已有 GPS 信息时直接跳过。
+- `-rp, --recursive-photos` 可选。递归搜索照片子目录。
+- `-rg, --recursive-gpx` 可选。递归搜索 GPX 子目录。

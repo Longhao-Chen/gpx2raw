@@ -15,7 +15,7 @@ PHOTO_EXTENSIONS = {".nef", ".jpg", ".jpeg", ".mov"}
 GPX_EXTENSIONS = {".gpx"}
 
 
-def _collect_gpx(gpx_args: list[str]) -> list[Path]:
+def _collect_gpx(gpx_args: list[str], recursive: bool = False) -> list[Path]:
     paths: list[Path] = []
     for raw in gpx_args:
         p = Path(raw).expanduser().resolve()
@@ -23,7 +23,8 @@ def _collect_gpx(gpx_args: list[str]) -> list[Path]:
             if p.suffix.lower() in GPX_EXTENSIONS:
                 paths.append(p)
         elif p.is_dir():
-            for item in sorted(p.rglob("*")):
+            iterator = p.rglob("*") if recursive else p.glob("*")
+            for item in sorted(iterator):
                 if item.is_file() and item.suffix.lower() in GPX_EXTENSIONS:
                     paths.append(item)
         else:
@@ -66,19 +67,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-w", "--write", action="store_true", help="执行写入。未指定时仅 dry-run 预览。")
     parser.add_argument("-N", "--no-backup", action="store_true", help="写入时不保留 exiftool 备份文件。")
     parser.add_argument("--skip-existing-gps", action="store_true", help="如果照片已包含 GPS 信息则跳过。")
+    parser.add_argument("-rp", "--recursive-photos", action="store_true", help="递归搜索照片子目录。")
+    parser.add_argument("-rg", "--recursive-gpx", action="store_true", help="递归搜索 GPX 子目录。")
     return parser
 
 
-def _collect_photos(photos_path: Path) -> list[Path]:
+def _collect_photos(photos_path: Path, recursive: bool = False) -> list[Path]:
     if photos_path.is_file():
         if photos_path.suffix.lower() not in PHOTO_EXTENSIONS:
             raise ValueError("--photos 为单文件时必须是 .NEF/.JPG/.JPEG/.MOV 文件。")
         return [photos_path]
 
     if photos_path.is_dir():
+        iterator = photos_path.rglob("*") if recursive else photos_path.glob("*")
         files = sorted(
             item
-            for item in photos_path.rglob("*")
+            for item in iterator
             if item.is_file() and item.suffix.lower() in PHOTO_EXTENSIONS
         )
         return files
@@ -93,9 +97,9 @@ def _print_row(columns: Iterable[str]) -> None:
 def _run(args: argparse.Namespace) -> int:
     photos_path = Path(args.photos).expanduser().resolve()
 
-    gpx_files = _collect_gpx(args.gpx)
+    gpx_files = _collect_gpx(args.gpx, recursive=args.recursive_gpx)
 
-    photos = _collect_photos(photos_path)
+    photos = _collect_photos(photos_path, recursive=args.recursive_photos)
     if not photos:
         raise ValueError("未发现 .NEF/.JPG/.JPEG/.MOV 文件。")
 

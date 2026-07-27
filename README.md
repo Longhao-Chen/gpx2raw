@@ -10,7 +10,8 @@
 ## 特性
 
 - `--photos` 同时支持目录和单文件。
-- `--gpx` 必填，通过 GPX 时间点匹配照片时间。支持传入多个文件或目录。
+- `--gpx` 通过 GPX 时间点匹配照片时间。支持传入多个文件或目录。与 `--lat/--lon` 互斥。
+- `--lat/--lon` 手动指定坐标，直接写入所有照片。与 `--gpx` 互斥。
 - 默认 `dry-run`，只有加 `--write` 才会写入。
 - 匹配策略为线性插值，超出最大时间差窗口会跳过。
 - 可选跳过已存在 GPS 信息的照片。
@@ -78,6 +79,12 @@ uv run gpx2raw --photos ./photos --gpx ./track.gpx --skip-existing-gps
 uv run gpx2raw --photos ./photos -rp --gpx ./gpx_folder -rg
 ```
 
+手动指定坐标写入（无需 GPX）:
+
+```bash
+uv run gpx2raw --photos ./photos --lat 30.5 --lon 120.8 --ele 100 -w
+```
+
 指定时间偏移与匹配窗口:
 
 ```bash
@@ -92,7 +99,10 @@ uv run gpx2raw \
 ## 参数
 
 - `--photos` 必填。目录或单个媒体文件（.NEF/.JPG/.JPEG/.MOV）。
-- `--gpx` 必填。GPX 文件或目录，可传入多个。
+- `--gpx` 可选（与 --lat/--lon 互斥）。GPX 文件或目录，可传入多个。
+- `--lat` 可选。手动指定纬度（需同时指定 --lon）。
+- `--lon` 可选。手动指定经度（需同时指定 --lat）。
+- `--ele` 可选。手动指定海拔，配合 --lat/--lon 使用。
 - `--max-delta-sec` 可选。最大允许时间差，默认 300。
 - `--clock-offset-sec` 可选。对照片时间加减秒数，默认 0。
 - `--timezone` 可选。照片缺失 `OffsetTimeOriginal` 时使用。

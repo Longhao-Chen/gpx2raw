@@ -204,3 +204,19 @@ def test_build_parser_supports_skip_existing_gps_flag() -> None:
     parser = build_parser()
     args = parser.parse_args(["--photos", "a.NEF", "--gpx", "b.gpx", "--skip-existing-gps"])
     assert args.skip_existing_gps is True
+
+
+def test_build_parser_supports_manual_coords() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--photos", "a.NEF", "--lat", "30.5", "--lon", "120.8", "--ele", "100"])
+    assert args.lat == 30.5
+    assert args.lon == 120.8
+    assert args.ele == 100.0
+
+
+def test_build_parser_manual_coords_without_ele() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--photos", "a.NEF", "--lat", "30.5", "--lon", "120.8"])
+    assert args.lat == 30.5
+    assert args.lon == 120.8
+    assert args.ele is None
